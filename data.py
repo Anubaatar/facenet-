@@ -13,13 +13,15 @@ import datetime
 
 mtcnn0 = MTCNN(image_size=240, margin=0, keep_all=False, min_face_size=40) # keep_all=False (顔の場所を検出して切り取るAIモデル)
 mtcnn = MTCNN(image_size=240, margin=0, keep_all=True, min_face_size=40) # keep_all=True
-resnet = InceptionResnetV1(pretrained='vggface2').eval() # (512個の数値にするAIモデル)
+resnet = InceptionResnetV1(pretrained='vggface2').eval() # (512個の数値にするAIモデル)(VGGFace2というデータセットを利用して学習したモデル)  
+                                                         # VGGFace2は、約9,000人分の330万枚の画像からなる大規模なデータです。
+
 # Read data from folder
 
 dataset = datasets.ImageFolder('photos') # photos folder path 
 idx_to_class = {i:c for c,i in dataset.class_to_idx.items()} # accessing names of peoples from folder names
 
-def collate_fn(x):
+def collate_fn(x): # collate_fn は Dataset から取得した複数のサンプルを結合して、1つのミニバッチを作成する処理を行う関数です。
     return x[0]
 
 loader = DataLoader(dataset, collate_fn=collate_fn)
@@ -29,7 +31,7 @@ embedding_list = [] # list of embeding matrix after conversion from cropped face
 
 for img, idx in loader:
     face, prob = mtcnn0(img, return_prob=True) 
-    if face is not None and prob>0.92:
+    if face is not None and prob>0.80:
         emb = resnet(face.unsqueeze(0)) 
         embedding_list.append(emb.detach()) 
         name_list.append(idx_to_class[idx])        
@@ -48,21 +50,18 @@ cam = cv2.VideoCapture(0)
 
 
 
-
-
-
 def get_datetime():
     dt_now=datetime.datetime.now()
-    dt_now_str=str(dt_now.year)+"年"+str(dt_now.month)+"月"+str(dt_now.day)+"日"\
-        +str(dt_now.hour)+"時"+str(dt_now.minute)+"分"+str(dt_now.second)+"秒"
+    dt_now_str=str(dt_now.year)+"year "+str(dt_now.month)+"month "+str(dt_now.day)+"day "\
+        +str(dt_now.hour)+"hour "+str(dt_now.minute)+"min "+str(dt_now.second)+"sec"
     return dt_now_str
 
-def export_data(data_str):
+def get_record(data_str):
     dt_now_str=get_datetime()
-    enter_str="出席"
+    enter_str="participated"
     file_str=data_str+","+enter_str+","+dt_now_str
     try:
-        with open('abcd.csv','a',encoding='shift-jis')as f:
+        with open('kiroku.csv','a',encoding='shift-jis')as f:
             print(file_str,file=f)
     except PermissionError:
         print("ファイルに書き込みできません")
@@ -82,7 +81,7 @@ while True:
         boxes, _ = mtcnn.detect(img)
                 
         for i, prob in enumerate(prob_list):
-            if prob>0.90:
+            if prob>0.80:
                 emb = resnet(img_cropped_list[i].unsqueeze(0)).detach() 
                 
                 dist_list = [] # list of matched distances, minimum distance is used to identify the person
@@ -99,7 +98,7 @@ while True:
                 
                 original_frame = frame.copy() # storing copy of frame before drawing on it
                 
-                if min_dist<0.90:
+                if min_dist<0.80:
                     frame = cv2.putText(frame, name+' '+str(min_dist), (box[0],box[1]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0),1, cv2.LINE_AA)
                 
                 frame = cv2.rectangle(frame, (box[0],box[1]) , (box[2],box[3]), (255,0,0), 2)
@@ -124,10 +123,10 @@ while True:
         cv2.imwrite(img_name, original_frame)
         print(" saved: {}".format(img_name))
         
-    elif k%256==ord('c'): # c to push
+    elif k%256==ord('a'): # a to get date time/ to save live pic
         
-        cv2.imwrite("participation/temp"+'.'+ str(n)+".jpg",original_frame)
-        export_data(int(name))
+        cv2.imwrite("participation/pic"+'.'+ str(n)+".jpg",original_frame)
+        get_record(name)
         n += 1
         
 cam.release()
